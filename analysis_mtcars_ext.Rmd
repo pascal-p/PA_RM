@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo=TRUE, cache=TRUE, warning=FALSE, message=FALSE, fig.p
 ```
 
 # Summary
-This document is an (optional investigative) extension of another study `analysis_mtcars.Rmd` (located in the same directory).  
+This document is an (optional investigative) extension of another study `analysis_mtcars.Rmd` (located in: https://github.com/pascal-p/PA_RM).  
 
 Having noticed a possible interaction between `wt` and `am` in the `mtcars` dataset, I would like to present this alternative model and compare it with initial model (in `analysis_mtcrs.Rmd` document).
 

@@ -251,7 +251,7 @@ best.model_with_interaction <- lm(mpg ~ wt + qsec + am + wt:am, data = mtcars)
 summary(best.model_with_interaction)$coefficient;summary(best.model_with_interaction)$r.squared
 anova(best.model, best.model_with_interaction)
 ```
-This model looks better indeed, but to prove it, I would need to provide the same regression diagnostics as above, which I did (to some extend) in an optional document (*TODO* github repo here).
+This model looks better indeed, but to prove it, I would need to provide the same regression diagnostics as above, which I did (to some extend) in an optional document (cf. https://github.com/pascal-p/PA_RM/blob/master/analysis_mtcars_ext.pdf).
 
 # References
 Beyond the coursera course itself [<ref>] (and all its resources), I also used (and keep using) the following books:  
