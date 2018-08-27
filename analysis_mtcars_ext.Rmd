@@ -1,0 +1,161 @@
+---
+title: "mtcars analysis (extension)"
+author: "Pascal P"
+date: "24 August 2018"
+output: 
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    df_print: kable
+    highlight: tango
+    fig_width: 6
+    fig_height: 3
+    fig_caption: true
+fontsize: 10pt
+geometry: margin=0.7in
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, cache=TRUE, warning=FALSE, message=FALSE, fig.path='figure/')
+```
+
+# Summary
+This document is an (optional investigative) extension of another study `analysis_mtcars.Rmd` (located in the same directory).  
+
+Having noticed a possible interaction between `wt` and `am` in the `mtcars` dataset, I would like to present this alternative model and compare it with initial model (in `analysis_mtcrs.Rmd` document).
+
+In the following, I am going to present the alternative model, investigate the regression diagnostics and then present a comparison before presenting the conclusions which state what I believe was achieved.
+
+
+\pagebreak
+
+# Analysis (alternative model)
+
+## Preparation
+
+The dataset (`mtcars`) once prepared, meaning all numerical (discrete) values (for features `cyl`, `vs`, `gear`, `carb` and `am`) converted as factor look as followed (extract):  
+
+
+```{r transform_n_summary, echo=F}
+# side effect mtcars
+mtcars$cyl <- factor(mtcars$cyl)
+mtcars$vs <-  factor(mtcars$vs)
+mtcars$gear <- factor(mtcars$gear)
+mtcars$carb <- factor(mtcars$carb)
+mtcars$am <- factor(mtcars$am, labels=c("auto", "manual"))
+
+knitr::kable(head(mtcars, 6), align="cr")
+```
+
+## Model
+
+Let us consider, the interaction between `wt` and `am` (as noted on our first plots for exploratory data analysis in document `analysis_mtcars.Rmd`).
+
+```{r best_model_inter, echo=T, comment=''}
+library(car)
+best.model_with_interaction <- lm(mpg ~ wt + qsec + am + wt:am, data = mtcars)
+
+summary(best.model_with_interaction)$coefficient
+summary(best.model_with_interaction)$r.squared
+```
+
+All estimates is this model have small p-value and are therefore significantly different from zero. The percentage of variance explained (linked to $R^2$ statistic) is about 89,6%.  
+When holding `wt` and `qsec` constant, manual transmission cars have on average $14.079 - 4.141 = 9.938$ more`mpg` than automatic transmission ones.
+
+## Regression diagnostics
+
+
+### Multiplots
+
+The standard plots for residual diagnostics are presented below:
+
+```{r multiplots, fig.height=7, fig.width=7, echo=F, comment=''}
+par(mfrow=c(2, 2), 
+    lwd = 2,
+    cex=0.8, cex.axis=0.7, cex.lab=0.7, cex.main=0.7, cex.sub=0.7, col="lightskyblue3")
+
+plot(best.model_with_interaction)
+```
+
+We observe that:  
+
+- there is no particular pattern for `Residuals vs fitted` (assumption of linearity), `Scale-Location` (assumption of homoscedasticity) plots,
+- we may have in `Residuals vs Leverage` plots (unusual observations), some points to look at (for later).
+- Independence of the dependent variable values (`mpg`) can be assumed given the dataset (my assumption, no reason to believe that the characteristics of one car model affects directly another one).
+- however it is clear that the assumption of normality (on the residuals) does not hold (`Normal Q-Q` plot), this may suggest:   
+  1 - that we need to further assess the robustness of that assumption (with `Shapiro-Wilk normality test`) or alternatively  
+  2 - we need to transform the response variable `mpg` (using `powerTransform` function from `car` package).
+
+### Going further with Normality assumption 
+
+Let's try the `Shapiro-Wilk normality test` on the residuals:  
+
+```{r normality_test, comment=''}
+shapiro.test(best.model_with_interaction$res)
+```
+
+And here we would conclude that the normality assumption (on the residuals) is holding (p-value of $0.1$).   
+
+### Transforming the response variable
+
+The alternative suggested was to transform the response variable (denoted $Y$, to $Y^\lambda$. Let's check this with the following code:
+```{r transfo_resp, comment=''}
+summary(powerTransform(mtcars$mpg))
+```
+
+A log transformation is suggested although the non-transformation hypothesis ($\lambda = 1$) cannot be rejected (p-value of $0.07$), which means that there is not so much evidence that a transformation is required.  
+
+### Unusual observation
+
+```{r multivar_diag_un_obs, fig.height=4, fig.width=6, echo=F}
+par(cex=0.6, cex.axis=0.7, cex.lab=0.7, cex.main=0.8, cex.sub=0.8, col="lightskyblue3")
+
+influencePlot(best.model_with_interaction, id=TRUE, main="Influence Plot", 
+              sub="circle size is proportional to Cook's distance")
+```
+
+We observe:  
+
+- `Fiat 128` is an outlier,
+- `Merc 230` and `Maserati Bora` have high leverage and
+- and observations with relative large circle may have disproportionate influence.
+
+## Comparisons
+
+Let's compare this model with the one presented in original analysis (document `analysis_mtcars.Rmd`), with `anova` and `AIC` (Akaike Information Criterion) functions. First let's show the previous model, as followed:
+
+```{r prev_best_model, echo=F, comment=''}
+prev_best.model <- lm(mpg ~ wt + qsec + am, data = mtcars)
+
+summary(prev_best.model)$coefficient
+summary(prev_best.model)$r.squared
+```
+
+The following comparison tells us that our model with interaction is indeed better (small p-value) by adding the interaction term.
+
+```{r first_cmp, echo=T, comment=''}
+anova(prev_best.model, best.model_with_interaction)
+```
+
+With the following comparison we look for the model with the smallest `AIC` values, and once again it is suggested that adding the interaction term is relevant.
+
+```{r sec_cmp, echo=T, comment=''}
+AIC(prev_best.model, best.model_with_interaction)
+```
+
+
+
+# Conclusion
+- Interpreting the results correctly looks more like an art (with science) than a science 
+- The size of the sample (32 observations) is quite small and even more in comparison with the number of features (11).  
+This small sample size may limit the power of our analysis  and the accuracy of our conclusion
+- The alternative model with interaction term seems better (than original model) and almost compatible with all the related assumptions of a multi-linear regression model: Independence, Linearity, Homoscedasticity (constant variance), and Normality (although not clear cut to me for this one).
+- If we accept the previous point, we can state that:  
+  1. the alternative model does not change the main claim of the original one, namely that manual transmission cars have a better `mpg` (lower consumption) than automatic ones (a $2.94$ more mpg vs $9.94$ more mpg with the alternative model).
+  2. however the alternative model (with interaction term between `wt` (weight and `am` transmission)) is slightly better.  
+  
+  
+Would this hold on a larger dataset?  would we be able to better select alternative models and use cross-validation to quantify how better models are?
+It looks like we need, as usual more data (if not more features).
+

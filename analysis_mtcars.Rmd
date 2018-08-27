@@ -1,0 +1,262 @@
+---
+title: "mtcars analysis"
+author: "Pascal P"
+date: "24 August 2018"
+output: 
+  pdf_document:
+#    toc: true
+#    toc_depth: 3
+    number_sections: true
+    df_print: kable
+    highlight: tango
+    fig_width: 6
+    fig_height: 3
+    fig_caption: true
+fontsize: 10pt
+geometry: margin=0.7in
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, cache=TRUE, warning=FALSE, message=FALSE, fig.path='figure/')
+```
+
+# Summary
+\small{
+The aim of this project was to analyze the mtcars dataset to provide answers to the two following questions:  
+
+  1. “Is an automatic or manual transmission better for MPG”.
+  
+  1. “Quantify the MPG difference between automatic and manual transmissions”.  
+  
+After a short data preparation and exploratory data analysis (with plots), we use a t-test which shows a difference in fuel consumption between manual and automatic transmission cars. 
+We then select a multi-variable linear regression model (among several) using adjusted $R^2$ statistic and p-values for significance and investigate how the assumptions for linear regression are  met, which suggest out model is not too inaccurate.  
+We then state our conclusions, namely that manual transmission cars (mtc) have a better `mpg` value (lower consumption) than automatic transmission ones. Our model quantified this difference by a factor of $2.94$ for mtc.   
+}
+
+# Analysis
+
+## Exploratory data analysis
+
+According to the help `?mtcars`, the dataset was extracted from the 1974 *Motor Trend* US magazine. It contains 32 samples (cars) measured by 11 features, the outcome is the fuel consumption (denoted mpg). Here is a brief overview of the dataset:  
+```{r summary, echo=F}
+head(mtcars, 3)
+```
+
+The features `cyl`, `vs`, `gear`, `carb` and `am` are numerical (discrete) and should be treated as factor, so let's transform them.
+
+```{r transform, echo=F}
+# side effect mtcars
+mtcars$cyl <- factor(mtcars$cyl)
+mtcars$vs <-  factor(mtcars$vs)
+mtcars$gear <- factor(mtcars$gear)
+mtcars$carb <- factor(mtcars$carb)
+mtcars$am <- factor(mtcars$am, labels=c("auto", "manual"))
+```
+
+
+According to appendix *[Pairwise combination scatterplots]*, we can see some links between `wt` and `mpg` (to be expected, as weight increases, mpg will decrease), as well as `hp`, `cyl`, `qsec` and `disp` with `mpg`. 
+Also appendix *[Box plots MPG vs transmission and weight vs transmission]* shows that manual transmission cars seem to have lower `mpg` (which means lower consumption) than automatic ones while the later are heavier than the former (suggesting a possible interaction).  
+
+## Fitting models and assessing their statistical relevance
+
+### Hypothesis testing
+
+We want to check if the mean MPG difference between manual transmission cars and automatic ones is significant (the null hypothesis states that it is 0, i.e no difference). 
+To do this, we will perform a two sample t-test (unpaired sample with non equal variance, given the sample):  
+
+```{r two_sample_t_test, echo=F}
+# explicting all default
+hypt <- t.test(mtcars$mpg ~ mtcars$am, alternative="two.sided", 
+               paired=F, var.equal=F, conf.level=0.95 )
+
+sum_hypt <- data.frame("t_stat" = hypt$statistic, "df" = hypt$parameter,
+                       "auto_mean" = hypt$estimate[1],
+                       "manual_mean" = hypt$estimate[2],
+                       "low_CI" = hypt$conf.int[1], "upp_CI" = hypt$conf.int[2],
+                       "p_value"  = hypt$p.value,
+                       row.names = NULL)
+
+knitr::kable(sum_hypt, align="cr")
+```
+
+The results from the t-test show that the p-value is very small and the 95% confidence interval does not contain 0. We can therefore reject the null hypothesis and retain the alternative one which states that the true mean difference of`mpg` for cars with manual and automatic transmissions is different from zero.
+
+### Multivariables linear regression models
+We want to determine the "best" combination of predictors (comprising $am$) to make accurate predictions about `mpg`. For this we are going to use the *Best Subset Selection* method and the `regsubsets()` function from the `leaps` package. There are multiple ways to quantified "best": adjusted $R^2$, $C_p$, `BIC`. We choose the adjusted $R^2$, cf. *[Best subset regression]* in appendix for the details.  
+
+```{r multivariate_linear_regr_model_selection, comment='', echo=F}
+library(leaps)
+
+fit_mv <- regsubsets(mpg ~ ., data=mtcars, nvmax=18, nbest=1, 
+                     method="exhaustive")
+ix <- which.max(summary(fit_mv)$adjr2) # index of 'best' model (rel. to adjr2)
+```
+
+The best model according to adjusted $R^2$ has five-predictors. Around this maximum we also have a four-predictor and a three-predictors (left) and above five-predictors (right). This is suggested by the plots in the appendix *[Best subset regression]* (on the right one, the top line on y-axis). It turns out that looking at the `p-values` for these models, some predictors are not significantly different from 0 (null hypothesis), suggesting that `mpg` and these predictors are not linearly related (cf. summary below, where `mxp` stands for model x predictors). *Please note that I am not showing the models above 5 predictors*.     
+
+```{r best_model, echo=F, comment=''}
+fit5_f <- lm(mpg ~ cyl + hp + wt + vs + am, data = mtcars)
+fit4_f <- lm(mpg ~ cyl + hp + wt + am, data = mtcars)
+fit3_f <- lm(mpg ~ wt + qsec + am, data = mtcars)
+
+ndf <- as.data.frame(summary(fit5_f)$coef)
+rownames(ndf) <- c("m5p_Intercept", "m5p_cyl6", "m5p_cyl8", "m5p_hp",  "m5p_wt", "m5p_vs1", "m5p_ammanual")
+df4 <- as.data.frame(summary(fit4_f)$coef)
+rownames(df4) <- c("m4p_Intercept", "m4p_cyl6", "m4p_cyl8", "m4p_hp",  "m4p_wt",  "m4p_ammanual")
+df3 <- as.data.frame(summary(fit3_f)$coef)
+rownames(df3) <- c("m3p_Intercept", "m3p_wt", "m3p_qsec", "m3p_ammanual")
+ndf <- rbind(ndf, df4, df3)
+
+best.model <- fit3_f
+knitr::kable(ndf, align="cr")
+```
+
+The best three-predictors model (related to adjusted $R^2$) shows that the three predictors (`wt`, `qsec` and `am`) are significantly different from zero, **this is our model of choice**. 
+
+# Conclusion
+
+- The three-predictors model tells us that on average manual transmission cars have **2.94** more `mpg` than automatic transmission ones.
+- It also explains 85% of the variance, as given by $R^2$ value below:  
+```{r best_model_var, comment=''}
+round(summary(best.model)$r.squared, 3)
+```  
+- The assumption of normality (cf. Q-Q plot in appendix) is limit acceptable, while the one about linearity seems to hold.
+- The constant variance assumption (homoscedasticity), `ncvTest` (cf. appendix) show a p-value just above the 0.05 cutoff (again limit acceptable), while the spread level plot looks fine.
+- With our three-predictor model, multicollinearity is not a problem (cf. appendix for details).
+- The last plot appendix "unusual observations", shows that for our model, `Chrysler Imperial` and `Fiat 128` are outliers, `Merc 230` has high leverage, while `Chrysler Imperial` may have disproportionate influence on the parameter estimates.
+- Last but not least, the `regsubset()` function does not seem to take into account potential interaction between predictors, which we noticed earlier (automatic transmission cars are heavier, at least on the given sample). We show an alternative (and admittedly better) model in the appendix. 
+
+
+\pagebreak 
+
+# Appendix
+
+## Data Preparation
+```{r A_transform, eval=F}
+# side effect mtcars
+mtcars$cyl <- factor(mtcars$cyl)
+mtcars$vs <-  factor(mtcars$vs)
+mtcars$gear <- factor(mtcars$gear)
+mtcars$carb <- factor(mtcars$carb)
+mtcars$am <- factor(mtcars$am, labels=c("auto", "manual"))
+```
+
+## Pairwise combination scatterplots {#A1}  
+
+```{r 01_pair_graph_mtcars, echo=FALSE, fig.height=7, fig.width=7, fig.align='center', size=7}
+library(GGally)
+ 
+ggpairs(mtcars, aes(colour = am), axisLabels = 'none',
+        lower = list(continuous=wrap(ggally_smooth, size=0.5)),
+        upper = list(continuous=wrap(ggally_cor, size=2))) +
+      ggtitle('Pair graphs for dataset mtcars 0: automatic vs 1: manual') +
+      theme(plot.title=element_text(hjust=0.5, size=9))
+```
+
+## Box plots MPG vs transmission and weight vs transmission {#A2} 
+
+```{r 02_mpg_vs_trans_mtcars, echo=FALSE, fig.width=7, fig.align='center'}
+library(ggpubr)  # for ggarrange
+
+g1 <- ggplot(mtcars, aes(x=am, y=mpg, fill=factor(am))) +
+  scale_fill_manual(values=c("lightskyblue3", "slategrey")) +
+  geom_boxplot(outlier.colour="darkred", outlier.size=1) +
+  ylab("MPG") + xlab("Transmission") +
+  ggtitle('MPG versus transmission')
+
+g2 <- ggplot(mtcars, aes(x=am, y=wt, fill=factor(am))) +
+  scale_fill_manual(values=c("lightskyblue3", "slategrey")) +
+  geom_boxplot(outlier.colour="darkred", outlier.size=1) +
+  ylab("Weight (1000lbs)") + xlab("Transmission") +
+  ggtitle('Weight versus transmission') # +
+
+th <- theme(plot.title=element_text(hjust=0.5, size=7), 
+            text=element_text(size=8))
+
+ggarrange(g1 + th, g2 + th, ncol=2, nrow=1,
+          common.legend=TRUE, legend="right") 
+```
+
+## Best subset regression {#A4}
+
+```{r multivariate_linear_regr_model_selection_f, comment='', eval='F'}
+library(leaps)
+fit_mv <- regsubsets(mpg ~ ., data=mtcars, nvmax=18, nbest=1, 
+                     method="exhaustive")
+ix <- which.max(summary(fit_mv)$adjr2) # index of 'best' model (rel. to adjr2)
+coef(fit_mv, ix) # coefficients for 'best' model (5-predictors)
+```
+
+```{r multivariate_linear_regr_model, fig.height=3, fig.width=7, message=F, echo=F}
+library(car)
+
+par(mfrow=c(1, 2), cex=0.7, cex.axis=0.7, cex.lab=0.7, cex.main=0.7, cex.sub=0.7, col="lightskyblue3")
+plot(summary(fit_mv)$adjr2, main="regression models",
+     xlab="Num. of predictors", ylab="Adj. R^2", type="l", col="lightskyblue3")
+points(ix-2, summary(fit_mv)$adjr2[ix-2], col="darkblue", pch=20, cex=1.2)
+points(ix-1, summary(fit_mv)$adjr2[ix-1], col="black", pch=20, cex=1.2)
+points(ix, summary(fit_mv)$adjr2[ix], col="black", pch=20, cex=1.2)
+
+plot(fit_mv, scale="adjr2", main="regression models")
+```
+
+## Regression diagnostics
+
+- Homoscedasticity
+```{r multivariate_diagn_homosced1, comment=''}
+ncvTest(best.model)
+```
+
+- Normality and Homoscedasticity
+
+```{r multivariate_diagn_norm, fig.height=4, fig.width=7, echo=F, comment=''}
+par(mfrow=c(1, 2), 
+    cex=0.8, cex.axis=0.7, cex.lab=0.7, cex.main=0.7, cex.sub=0.7, col="lightskyblue3")
+
+qqPlot(best.model, labels=row.names(mtcars), id=F, main="Q-Q Plot - Normality", 
+       grid=T, lwd=2)
+
+spreadLevelPlot(best.model, lwd=2, grid=T, main="Spread-level (Homoscedasticity)",
+                id=list(method=list("x", "y"), n=2, cex=0.5, col=carPalette()[1], location="lr"))
+```
+
+- Linearity
+
+```{r multivariate_diagn_lin, fig.height=5, fig.width=7, echo=F}
+# Linearity - 5 plots
+par(cex=0.7, cex.axis=0.7, cex.lab=0.7, cex.main=0.3, cex.sub=0.3, col="lightskyblue3")
+crPlots(best.model, smooth=T, grid=T, main="Component + Residual Plots")
+```
+
+- Multicollinearity (problem if $\sqrt(vif) > 2$)
+```{r multivariate_diagn_mcolin, echo=F, comment=''}
+vif(best.model)
+sqrt(vif(best.model)) > 2
+```
+
+- Unusual observation
+
+```{r multivariate_diag_un_obs, fig.height=4, fig.width=6, echo=F}
+par(cex=0.6, cex.axis=0.7, cex.lab=0.7, cex.main=0.8, cex.sub=0.8, col="lightskyblue3")
+
+influencePlot(best.model, id=TRUE, main="Influence Plot", 
+              sub="circle size is proportional to Cook's distance")
+```
+
+
+## Alternative model (with interaction)
+Let us consider, the possible interaction between `wt` and `am` (as noted on our first plots for exploratory data analysis).
+```{r best_model_inter1, echo=T, comment=''}
+best.model_with_interaction <- lm(mpg ~ wt + qsec + am + wt:am, data = mtcars)
+summary(best.model_with_interaction)$coefficient;summary(best.model_with_interaction)$r.squared
+anova(best.model, best.model_with_interaction)
+```
+This model looks better indeed, but to prove it, I would need to provide the same regression diagnostics as above, which I did (to some extend) in an optional document (*TODO* github repo here).
+
+# References
+Beyond the coursera course itself [<ref>] (and all its resources), I also used (and keep using) the following books:  
+
+- *An Introduction to Statistical Learning: with Applications in R*, by Gareth James, Daniela Witten, Trevor Hastie, Robert Tibshirani,
+- *R in Action: Data Analysis and Graphics with R Second Edition* by Robert Kabacoff,
+- *The Elements of Statistical Learning: Data Mining, Inference, and Prediction, Second Edition* by Trevor Hastie and Robert Tibshirani 
+
