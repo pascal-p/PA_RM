@@ -24,9 +24,9 @@ knitr::opts_chunk$set(echo=TRUE, cache=TRUE, warning=FALSE, message=FALSE, fig.p
 \small{
 The aim of this project was to analyze the mtcars dataset to provide answers to the two following questions:  
 
-  1. “Is an automatic or manual transmission better for MPG”.
+  1. “Is an automatic or manual transmission better for MPG”.  
   
-  1. “Quantify the MPG difference between automatic and manual transmissions”.  
+  2. “Quantify the MPG difference between automatic and manual transmissions”.    
   
 After a short data preparation and exploratory data analysis (with plots), we use a t-test which shows a difference in fuel consumption between manual and automatic transmission cars. 
 We then select a multi-variable linear regression model (among several) using adjusted $R^2$ statistic and p-values for significance and investigate how the assumptions for linear regression are  met, which suggest out model is not too inaccurate.  
@@ -209,7 +209,7 @@ ncvTest(best.model)
 
 - Normality and Homoscedasticity
 
-```{r multivariate_diagn_norm, fig.height=4, fig.width=7, echo=F, comment=''}
+```{r multivariate_diagn_norm, fig.height=4, fig.width=8, echo=F, comment=''}
 par(mfrow=c(1, 2), 
     cex=0.8, cex.axis=0.7, cex.lab=0.7, cex.main=0.7, cex.sub=0.7, col="lightskyblue3")
 
@@ -249,12 +249,17 @@ Let us consider, the possible interaction between `wt` and `am` (as noted on our
 ```{r best_model_inter1, echo=T, comment=''}
 best.model_with_interaction <- lm(mpg ~ wt + qsec + am + wt:am, data = mtcars)
 summary(best.model_with_interaction)$coefficient;summary(best.model_with_interaction)$r.squared
+```
+\pagebreak
+
+```{r best_models_cmp, echo=T, comment=''}
 anova(best.model, best.model_with_interaction)
 ```
+
 This model looks better indeed, but to prove it, I would need to provide the same regression diagnostics as above, which I did (to some extend) in an optional document (cf. https://github.com/pascal-p/PA_RM/blob/master/analysis_mtcars_ext.pdf).
 
 # References
-Beyond the coursera course itself [<ref>] (and all its resources), I also used (and keep using) the following books:  
+Beyond the coursera course itself [https://www.coursera.org/learn/regression-models/home/welcome] (and all its resources), I also used (and keep using) the following books:  
 
 - *An Introduction to Statistical Learning: with Applications in R*, by Gareth James, Daniela Witten, Trevor Hastie, Robert Tibshirani,
 - *R in Action: Data Analysis and Graphics with R Second Edition* by Robert Kabacoff,
